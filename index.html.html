@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sumit PDF Tools</title>
+
+<script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#f1f5f9;
+  color:#172033;
+}
+header{
+  background:#111827;
+  color:white;
+  padding:25px 15px;
+  text-align:center;
+}
+header h1{margin:0;font-size:29px}
+header p{color:#cbd5e1}
+.container{max-width:900px;margin:25px auto;padding:15px}
+.card{
+  background:white;
+  padding:22px;
+  margin-bottom:20px;
+  border-radius:14px;
+  box-shadow:0 4px 15px #00000010;
+}
+h2{color:#2563eb;margin-top:0}
+input{display:block;margin:15px 0;max-width:100%}
+button{
+  background:#2563eb;
+  color:white;
+  border:0;
+  padding:12px 20px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:15px;
+}
+button:hover{background:#1d4ed8}
+input[type="number"]{
+  padding:10px;
+  width:150px;
+  border:1px solid #cbd5e1;
+  border-radius:6px;
+}
+.status{margin-top:12px;overflow-wrap:anywhere}
+footer{text-align:center;padding:20px;color:#64748b}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>📄 Sumit PDF Tools</h1>
+  <p>Free Online PDF Tools — Simple, Fast & Easy</p>
+</header>
+
+<div class="container">
+
+  <section class="card">
+    <h2>📚 PDF Merge</h2>
+    <p>दो या अधिक PDF फाइलों को एक PDF में जोड़ें।</p>
+    <input type="file" id="mergeFiles" accept=".pdf,application/pdf" multiple>
+    <button onclick="mergePDF()">Merge PDF</button>
+    <div id="mergeStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>✂️ PDF Split</h2>
+    <p>PDF में से अपनी पसंद का एक पेज अलग करें।</p>
+    <input type="file" id="splitFile" accept=".pdf,application/pdf">
+    <label>कौन-सा पेज निकालना है? (पहला पेज = 1)</label>
+    <input type="number" id="pageNumber" min="1" value="1">
+    <button onclick="splitPDF()">Extract Page</button>
+    <div id="splitStatus" class="status"></div>
+  </section>
+
+  <section class="card">
+    <h2>🖼️ Image to PDF</h2>
+    <p>एक या अधिक JPG/PNG तस्वीरों को PDF में बदलें।</p>
+    <input type="file" id="imageFiles" accept="image/jpeg,image/png" multiple>
+    <button onclick="imagesToPDF()">Convert to PDF</button>
+    <div id="imageStatus" class="status"></div>
+  </section>
+
+</div>
+
+<footer>
+  © 2026 Sumit PDF Tools | Free Online PDF Utilities
+</footer>
+
+<script>
+function setStatus(id, message) {
+  document.getElementById(id).textContent = message;
+}
+
+function downloadPDF(bytes, filename) {
+  const blob = new Blob([bytes], {type:"application/pdf"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function mergePDF() {
+  const input = document.getElementById("mergeFiles");
+  const files = Array.from(input.files);
+  const status = "mergeStatus";
+
+  try {
+    if (files.length < 2) {
+      setStatus(status, "कम से कम 2 PDF फाइलें चुनिए।");
+      return;
+    }
+
+    setStatus(status, "PDF फाइलें जोड़ी जा रही हैं...");
+
+    const merged = await PDFLib.PDFDocument.create();
+
+    for (const file of files) {
+      const bytes = await file.arrayBuffer();
+      const pdf = await PDFLib.PDFDocument.load(bytes);
+      const pages = await merged.copyPages(pdf, pdf.getPageIndices());
+      pages.forEach(page => merged.addPage(page));
+    }
+
+    const output = await merged.save();
+    downloadPDF(output, "Sumit-Merged.pdf");
+    setStatus(status, "हो गया! आपकी merged PDF डाउनलोड हो गई।");
+
+  } catch (error) {
+    setStatus(status, "PDF नहीं जुड़ सकी। फाइलें जाँचें और दोबारा कोशिश करें।");
+  }
+}
+
+async function splitPDF() {
+  const file = document.getElementById("splitFile").files[0];
+  const pageNumber = Number(document.getElementById("pageNumber").value);
+  const status = "splitStatus";
+
+  try {
+    if (!file) {
+      setStatus(status, "पहले PDF फाइल चुनिए।");
+      return;
+    }
+
+    if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+      setStatus(status, "पेज नंबर 1 या उससे अधिक होना चाहिए।");
+      return;
+    }
+
+    setStatus(status, "पेज निकाला जा रहा है...");
+
+    const bytes = await file.arrayBuffer();
+    const original = await PDFLib.PDFDocument.load(bytes);
+    const totalPages = original.getPageCount();
+
+    if (pageNumber > totalPages) {
+      setStatus(status, "इस PDF में केवल " + totalPages + " पेज हैं।");
+      return;
+    }
+
+    const outputPDF = await PDFLib.PDFDocument.create();
+    const [page] = await outputPDF.copyPages(original, [pageNumber - 1]);
+    outputPDF.addPage(page);
+
+    const output = await outputPDF.save();
+    downloadPDF(output, "Sumit-Page-" + pageNumber + ".pdf");
+    setStatus(status, "हो गया! आपका चुना हुआ पेज डाउनलोड हो गया।");
+
+  } catch (error) {
+    setStatus(status, "PDF नहीं खुल सकी। कोई दूसरी PDF चुनकर कोशिश करें।");
+  }
+}
+
+async function imagesToPDF() {
+  const input = document.getElementById("imageFiles");
+  const files = Array.from(input.files);
+  const status = "imageStatus";
+
+  try {
+    if (files.length === 0) {
+      setStatus(status, "पहले JPG या PNG तस्वीरें चुनिए।");
+      return;
+    }
+
+    setStatus(status, "तस्वीरों से PDF बनाई जा रही है...");
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      if (!["image/jpeg", "image/png"].includes(file.type)) {
+        continue;
+      }
+
+      const dataURL = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = dataURL;
+      });
+
+      if (i > 0) pdf.addPage();
+
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 10;
+      const scale = Math.min(
+        (pageWidth - margin * 2) / image.width,
+        (pageHeight - margin * 2) / image.height
+      );
+
+      const width = image.width * scale;
+      const height = image.height * scale;
+      const x = (pageWidth - width) / 2;
+      const y = (pageHeight - height) / 2;
+
+      pdf.addImage(dataURL, file.type === "image/png" ? "PNG" : "JPEG",
+                   x, y, width, height);
+    }
+
+    if (!pdf.internal.getNumberOfPages()) {
+      setStatus(status, "कृपया सही JPG या PNG फाइल चुनिए।");
+      return;
+    }
+
+    pdf.save("Sumit-Images.pdf");
+    setStatus(status, "हो गया! आपकी PDF डाउनलोड हो गई।");
+
+  } catch (error) {
+    setStatus(status, "कन्वर्जन नहीं हुआ। दूसरी तस्वीरें चुनकर कोशिश करें।");
+  }
+}
+</script>
+
+</body>
+</html>
