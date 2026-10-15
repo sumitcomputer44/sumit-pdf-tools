@@ -3,133 +3,74 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sumit PDF - Free PDF Tools</title>
+<title>Sumit PDF Tools</title>
 <style>
-*{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172554}
-header{background:#123b8b;color:white;text-align:center;padding:25px 12px}
-header h1{margin:0;font-size:30px}
-header p{margin:8px 0 0}
-main{max-width:850px;margin:25px auto;padding:12px}
-.card{background:white;border-radius:14px;padding:20px;margin:16px 0;box-shadow:0 4px 15px #0001}
-h2{margin-top:0;color:#1645a5}
-input,button{width:100%;padding:12px;margin:8px 0;border-radius:8px}
-input{border:1px solid #cbd5e1}
-button{background:#1746ad;color:white;border:0;font-weight:bold;cursor:pointer}
-button:hover{background:#0d327e}
-.note{font-size:14px;color:#64748b}
-#status{white-space:pre-wrap}
-footer{text-align:center;background:#123b8b;color:white;padding:18px;margin-top:30px}
+body{font-family:Arial,sans-serif;background:#eef4ff;margin:0;text-align:center;color:#172554}
+header{background:#155eef;color:white;padding:25px}
+h1{margin:0}
+main{max-width:650px;margin:25px auto;padding:15px}
+.card{background:white;padding:22px;margin:15px 0;border-radius:14px;box-shadow:0 3px 12px #ccd5e5}
+button{background:#155eef;color:white;border:0;padding:12px 20px;border-radius:8px;cursor:pointer}
+input{margin:15px;max-width:100%}
 </style>
 </head>
 <body>
 <header>
-<h1>📄 Sumit PDF</h1>
-<p>Free Online PDF Tools — Fast, Simple & Secure</p>
+<h1>Sumit PDF</h1>
+<p>Free Online PDF Tools</p>
 </header>
 <main>
 <div class="card">
-<h2>🖼️ Image to PDF</h2>
-<input type="file" id="images" accept="image/*" multiple>
-<button onclick="imageToPdf()">Convert Images to PDF</button>
+<h2>Image to PDF</h2>
+<p>फोटो को PDF में बदलें</p>
+<input type="file" id="images" accept="image/png,image/jpeg" multiple>
+<br>
+<button onclick="makePDF()">Convert to PDF</button>
+<p id="msg"></p>
 </div>
-
 <div class="card">
-<h2>🔗 Merge PDF</h2>
-<input type="file" id="mergeFiles" accept=".pdf,application/pdf" multiple>
-<button onclick="mergePdf()">Merge PDF Files</button>
-<p class="note">Select two or more PDF files.</p>
+<h2>Merge PDF</h2>
+<p>कई PDF को जोड़ने की सुविधा जल्द आएगी।</p>
 </div>
-
 <div class="card">
-<h2>✂️ Split PDF</h2>
-<input type="file" id="splitFile" accept=".pdf,application/pdf">
-<label>Start page:</label>
-<input type="number" id="startPage" min="1" value="1">
-<label>End page:</label>
-<input type="number" id="endPage" min="1" value="1">
-<button onclick="splitPdf()">Extract Pages to PDF</button>
-<p class="note">Choose the page range you want to extract.</p>
+<h2>Split PDF</h2>
+<p>PDF को अलग-अलग करने की सुविधा जल्द आएगी।</p>
 </div>
-<div class="card"><p id="status">Ready to use!</p></div>
 </main>
-<footer>© 2026 Sumit PDF | Made by Sumit Kshirsagar</footer>
-
-<script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const { PDFDocument } = PDFLib;
-
-function status(msg){
- document.getElementById('status').textContent=msg;
+async function makePDF(){
+const files=document.getElementById('images').files;
+const msg=document.getElementById('msg');
+if(!files.length){msg.textContent='पहले फोटो चुनें।';return;}
+msg.textContent='PDF बन रही है...';
+try{
+const {jsPDF}=window.jspdf;
+const pdf=new jsPDF();
+for(let i=0;i<files.length;i++){
+const data=await new Promise((resolve,reject)=>{
+const reader=new FileReader();
+reader.onload=()=>resolve(reader.result);
+reader.onerror=reject;
+reader.readAsDataURL(files[i]);
+});
+if(i>0)pdf.addPage();
+const img=new Image();
+await new Promise((resolve,reject)=>{
+img.onload=resolve;
+img.onerror=reject;
+img.src=data;
+});
+const w=pdf.internal.pageSize.getWidth();
+const h=pdf.internal.pageSize.getHeight();
+const scale=Math.min(w/img.width,h/img.height);
+const iw=img.width*scale;
+const ih=img.height*scale;
+pdf.addImage(data,'JPEG',(w-iw)/2,(h-ih)/2,iw,ih);
 }
-
-function downloadPdf(bytes,name){
- const blob=new Blob([bytes],{type:'application/pdf'});
- const url=URL.createObjectURL(blob);
- const a=document.createElement('a');
- a.href=url;a.download=name;a.click();
- setTimeout(()=>URL.revokeObjectURL(url),2000);
-}
-
-async function imageToPdf(){
- try{
-  const files=[...document.getElementById('images').files];
-  if(!files.length)return status('Please select images first.');
-  status('Creating PDF...');
-  const pdf=await PDFDocument.create();
-  for(const file of files){
-   const data=await file.arrayBuffer();
-   let img;
-   if(file.type==='image/png')img=await pdf.embedPng(data);
-   else if(file.type==='image/jpeg')img=await pdf.embedJpg(data);
-   else{
-    const bitmap=await createImageBitmap(file);
-    const canvas=document.createElement('canvas');
-    canvas.width=bitmap.width;canvas.height=bitmap.height;
-    canvas.getContext('2d').drawImage(bitmap,0,0);
-    const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.92));
-    img=await pdf.embedJpg(await blob.arrayBuffer());
-   }
-   const page=pdf.addPage([img.width,img.height]);
-   page.drawImage(img,{x:0,y:0,width:img.width,height:img.height});
-  }
-  downloadPdf(await pdf.save(),'Sumit-Images.pdf');
-  status('Image to PDF completed!');
- }catch(e){status('Error: '+e.message);}
-}
-
-async function mergePdf(){
- try{
-  const files=[...document.getElementById('mergeFiles').files];
-  if(files.length<2)return status('Please select at least two PDF files.');
-  status('Merging PDFs...');
-  const merged=await PDFDocument.create();
-  for(const file of files){
-   const src=await PDFDocument.load(await file.arrayBuffer());
-   const pages=await merged.copyPages(src,src.getPageIndices());
-   pages.forEach(p=>merged.addPage(p));
-  }
-  downloadPdf(await merged.save(),'Sumit-Merged.pdf');
-  status('PDF files merged successfully!');
- }catch(e){status('Could not merge. Check that the PDFs are valid and not password-protected.');}
-}
-
-async function splitPdf(){
- try{
-  const file=document.getElementById('splitFile').files[0];
-  if(!file)return status('Please select a PDF file.');
-  status('Extracting pages...');
-  const src=await PDFDocument.load(await file.arrayBuffer());
-  const start=Number(document.getElementById('startPage').value);
-  const end=Number(document.getElementById('endPage').value);
-  if(start<1||end<start||end>src.getPageCount())
-   return status('Invalid page range. This PDF has '+src.getPageCount()+' pages.');
-  const out=await PDFDocument.create();
-  const pages=await out.copyPages(src,Array.from({length:end-start+1},(_,i)=>start-1+i));
-  pages.forEach(p=>out.addPage(p));
-  downloadPdf(await out.save(),'Sumit-Split.pdf');
-  status('Selected pages extracted successfully!');
- }catch(e){status('Could not process PDF. Check that it is valid and not password-protected.');}
+pdf.save('Sumit-PDF.pdf');
+msg.textContent='PDF डाउनलोड हो गई!';
+}catch(e){msg.textContent='त्रुटि हुई। दोबारा कोशिश करें।';}
 }
 </script>
 </body>
